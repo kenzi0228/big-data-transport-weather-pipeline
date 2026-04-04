@@ -1,0 +1,11 @@
+{
+  "total_events": 6,
+  "delayed_events_over_threshold": 3,
+  "average_delay_all_events": 5.5,
+  "average_delay_by_line": {
+    "RER_A": 4.5,
+    "METRO_1": 0.0,
+    "BUS_72": 7.5,
+    "TRAM_T3": 9.0
+  }
+}

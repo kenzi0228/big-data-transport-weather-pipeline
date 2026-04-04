@@ -1,0 +1,56 @@
+[
+  {
+    "weather_id": "W001",
+    "timestamp": "2026-04-01 08:00:00",
+    "zone": "paris_est",
+    "temperature_c": 12.4,
+    "rainfall_mm": 0.0,
+    "wind_speed_kmh": 10.5,
+    "weather_condition": "cloudy"
+  },
+  {
+    "weather_id": "W002",
+    "timestamp": "2026-04-01 08:01:00",
+    "zone": "paris_est",
+    "temperature_c": 12.2,
+    "rainfall_mm": 1.2,
+    "wind_speed_kmh": 12.0,
+    "weather_condition": "light_rain"
+  },
+  {
+    "weather_id": "W003",
+    "timestamp": "2026-04-01 08:02:00",
+    "zone": "paris_centre",
+    "temperature_c": 12.0,
+    "rainfall_mm": 2.5,
+    "wind_speed_kmh": 18.0,
+    "weather_condition": "rain"
+  },
+  {
+    "weather_id": "W004",
+    "timestamp": "2026-04-01 08:03:00",
+    "zone": "paris_ouest",
+    "temperature_c": 11.8,
+    "rainfall_mm": 3.1,
+    "wind_speed_kmh": 22.0,
+    "weather_condition": "rain"
+  },
+  {
+    "weather_id": "W005",
+    "timestamp": "2026-04-01 08:04:00",
+    "zone": "paris_ouest",
+    "temperature_c": 11.7,
+    "rainfall_mm": 0.4,
+    "wind_speed_kmh": 15.0,
+    "weather_condition": "light_rain"
+  },
+  {
+    "weather_id": "W006",
+    "timestamp": "2026-04-01 08:05:00",
+    "zone": "paris_sud",
+    "temperature_c": 11.5,
+    "rainfall_mm": 4.6,
+    "wind_speed_kmh": 28.0,
+    "weather_condition": "heavy_rain"
+  }
+]

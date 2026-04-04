@@ -1,0 +1,39 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+
+# Runtime
+logs/*
+!logs/.gitkeep
+runtime/pids/*
+!runtime/pids/.gitkeep
+
+# Outputs
+outputs/csv/*
+outputs/reports/*
+!outputs/csv/.gitkeep
+!outputs/reports/.gitkeep
+
+# Raw and refined data
+data/raw/idfm_stop_monitoring/*
+data/raw/openmeteo/*
+data/refined/idfm/*
+data/refined/weather/*
+data/analytics/daily_kpis/*
+!data/raw/idfm_stop_monitoring/.gitkeep
+!data/raw/openmeteo/.gitkeep
+!data/refined/idfm/.gitkeep
+!data/refined/weather/.gitkeep
+!data/analytics/daily_kpis/.gitkeep
+
+# Hadoop / local temp
+*.log
+tmp/
+tmp/**

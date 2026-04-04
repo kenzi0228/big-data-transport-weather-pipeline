@@ -1,0 +1,30 @@
+project:
+  name: "big-data-transport-weather-pipeline"
+  mode: "hybrid"
+
+sources:
+  idfm_base_url: "https://prim.iledefrance-mobilites.fr/marketplace/stop-monitoring"
+  openmeteo_base_url: "https://api.open-meteo.com/v1/forecast"
+
+paths:
+  raw_idfm_local: "data/raw/idfm_stop_monitoring"
+  raw_weather_local: "data/raw/openmeteo"
+  refined_idfm_local: "data/refined/idfm"
+  refined_weather_local: "data/refined/weather"
+  analytics_local: "data/analytics/daily_kpis"
+  csv_output: "outputs/csv"
+  reports_output: "outputs/reports"
+
+kafka:
+  bootstrap_servers: "localhost:9092"
+  topic_idfm_raw: "idfm.stop_monitoring.raw"
+
+hbase:
+  table_live_status: "idfm_live_stop_status"
+
+hdfs:
+  raw_idfm_path: "/data/raw/idfm_stop_monitoring"
+  raw_weather_path: "/data/raw/openmeteo"
+  refined_idfm_path: "/data/refined/idfm"
+  refined_weather_path: "/data/refined/weather"
+  analytics_path: "/data/analytics/daily_kpis"

@@ -1,0 +1,8 @@
+{
+  "total_transport_events": 6,
+  "total_weather_events": 6,
+  "matched_events": 6,
+  "average_delay_all": 5.5,
+  "average_delay_heavy_rain": 6.67,
+  "average_delay_no_heavy_rain": 4.33
+}

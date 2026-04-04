@@ -1,0 +1,12 @@
+stops:
+  - monitoring_ref: "TO_DEFINE_1"
+    label: "stop_1"
+    enabled: true
+
+  - monitoring_ref: "TO_DEFINE_2"
+    label: "stop_2"
+    enabled: true
+
+  - monitoring_ref: "TO_DEFINE_3"
+    label: "stop_3"
+    enabled: true

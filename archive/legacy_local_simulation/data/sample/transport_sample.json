@@ -1,0 +1,68 @@
+[
+  {
+    "event_id": "T001",
+    "timestamp": "2026-04-01 08:00:00",
+    "line_id": "RER_A",
+    "vehicle_id": "VA001",
+    "stop_id": "STOP_101",
+    "delay_minutes": 2,
+    "status": "on_time",
+    "latitude": 48.8001,
+    "longitude": 2.4501
+  },
+  {
+    "event_id": "T002",
+    "timestamp": "2026-04-01 08:01:00",
+    "line_id": "RER_A",
+    "vehicle_id": "VA002",
+    "stop_id": "STOP_102",
+    "delay_minutes": 7,
+    "status": "delayed",
+    "latitude": 48.8050,
+    "longitude": 2.4550
+  },
+  {
+    "event_id": "T003",
+    "timestamp": "2026-04-01 08:02:00",
+    "line_id": "METRO_1",
+    "vehicle_id": "M1001",
+    "stop_id": "STOP_201",
+    "delay_minutes": 0,
+    "status": "on_time",
+    "latitude": 48.8600,
+    "longitude": 2.3500
+  },
+  {
+    "event_id": "T004",
+    "timestamp": "2026-04-01 08:03:00",
+    "line_id": "BUS_72",
+    "vehicle_id": "B7201",
+    "stop_id": "STOP_301",
+    "delay_minutes": 11,
+    "status": "delayed",
+    "latitude": 48.8700,
+    "longitude": 2.2900
+  },
+  {
+    "event_id": "T005",
+    "timestamp": "2026-04-01 08:04:00",
+    "line_id": "BUS_72",
+    "vehicle_id": "B7202",
+    "stop_id": "STOP_302",
+    "delay_minutes": 4,
+    "status": "on_time",
+    "latitude": 48.8720,
+    "longitude": 2.2950
+  },
+  {
+    "event_id": "T006",
+    "timestamp": "2026-04-01 08:05:00",
+    "line_id": "TRAM_T3",
+    "vehicle_id": "TR3001",
+    "stop_id": "STOP_401",
+    "delay_minutes": 9,
+    "status": "delayed",
+    "latitude": 48.8250,
+    "longitude": 2.3750
+  }
+]
