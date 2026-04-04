@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # Big Data Transport Weather Pipeline
 
 ## Project goal
@@ -24,8 +24,3 @@ Hybrid Big Data pipeline for quasi real-time IDFM stop monitoring and weather im
 - outputs/: csv exports and reports
 - archive/: archived legacy local simulation
 
-## Notes
-The previous local simulation version has been archived under archive/legacy_local_simulation/.
-=======
-# big-data-transport-weather-pipeline
->>>>>>> f4024997b01e6b08810c08d711b2fd93381400a7
