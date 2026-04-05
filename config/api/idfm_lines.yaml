@@ -1,0 +1,14 @@
+lines:
+  - line_ref: "STIF:Line::C01376:"
+    line_label: "metro_6"
+    target_stop_refs:
+      - "STIF:StopPoint:Q:463103:"
+      - "STIF:StopPoint:Q:463128:"
+    enabled: true
+
+  - line_ref: "STIF:Line::C01379:"
+    line_label: "metro_7"
+    target_stop_refs:
+      - "STIF:StopPoint:Q:21941:"
+      - "STIF:StopPoint:Q:463233:"
+    enabled: true

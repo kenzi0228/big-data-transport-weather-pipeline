@@ -4,6 +4,7 @@ project:
 
 sources:
   idfm_base_url: "https://prim.iledefrance-mobilites.fr/marketplace/stop-monitoring"
+  line_request_base_url: "https://prim.iledefrance-mobilites.fr/marketplace/requete-ligne"
   openmeteo_base_url: "https://api.open-meteo.com/v1/forecast"
 
 paths:

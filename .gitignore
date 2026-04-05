@@ -1,39 +1,103 @@
+# =========================
+# Python
+# =========================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+.python-version
+
+# Virtual environments
 .venv/
 venv/
-.env
+env/
+ENV/
+
+# Secrets
+secrets/*
+!secrets/.gitkeep
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Environment files
+.env
+.env.*
+
+# OS / Editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
-# Runtime
+# =========================
+# Logs and runtime
+# =========================
 logs/*
 !logs/.gitkeep
+
 runtime/pids/*
 !runtime/pids/.gitkeep
 
+*.log
+
+# =========================
+# Credentials / secrets
+# =========================
+config/api/idfm_credentials.yaml
+config/api/*.secret.yaml
+*.pem
+*.key
+
+# =========================
 # Outputs
+# =========================
 outputs/csv/*
 outputs/reports/*
 !outputs/csv/.gitkeep
 !outputs/reports/.gitkeep
 
-# Raw and refined data
+# =========================
+# Raw / refined / analytics data
+# =========================
 data/raw/idfm_stop_monitoring/*
 data/raw/openmeteo/*
 data/refined/idfm/*
 data/refined/weather/*
 data/analytics/daily_kpis/*
+
 !data/raw/idfm_stop_monitoring/.gitkeep
 !data/raw/openmeteo/.gitkeep
 !data/refined/idfm/.gitkeep
 !data/refined/weather/.gitkeep
 !data/analytics/daily_kpis/.gitkeep
 
-# Hadoop / local temp
-*.log
+# =========================
+# Temporary local files
+# =========================
 tmp/
 tmp/**
+temp/
+temp/**
+*.tmp
+
+# =========================
+# Hadoop / Spark / local execution artifacts
+# =========================
+metastore_db/
+derby.log
+spark-warehouse/
+*.crc
+
+# =========================
+# Archives / legacy local work
+# =========================
+archive/
+
+# =========================
+# Optional local exports
+# =========================
+*.csv
+*.parquet
+*.jsonl

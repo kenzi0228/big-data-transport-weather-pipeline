@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.utils.idfm_parser import normalize_stop_visits
+from scripts.utils.idfm_line_parser import extract_estimated_journeys, filter_journeys_by_stop_refs
 
 
 def load_yaml(path: str) -> dict[str, Any]:
@@ -52,13 +52,11 @@ def build_kafka_producer(bootstrap_servers: str) -> KafkaProducer:
     )
 
 
-def fetch_stop_monitoring(
+def fetch_line_monitoring(
     base_url: str,
     api_key: str,
-    monitoring_ref: str,
     line_ref: str,
-    timeout_seconds: int,
-    maximum_stop_visits: int
+    timeout_seconds: int
 ) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
@@ -66,12 +64,8 @@ def fetch_stop_monitoring(
     }
 
     params = {
-        "MonitoringRef": monitoring_ref,
-        "MaximumStopVisits": maximum_stop_visits
+        "LineRef": line_ref
     }
-
-    if line_ref:
-        params["LineRef"] = line_ref
 
     response = requests.get(
         base_url,
@@ -84,25 +78,28 @@ def fetch_stop_monitoring(
 
 
 def build_raw_kafka_message(
-    monitoring_ref: str,
-    stop_label: str,
     line_ref: str,
-    payload: dict[str, Any]
+    line_label: str,
+    target_stop_refs: list[str],
+    filtered_journeys: list[dict[str, Any]],
+    raw_payload: dict[str, Any]
 ) -> dict[str, Any]:
     return {
-        "source": "idfm_stop_monitoring",
+        "source": "idfm_line_request",
         "ingestion_time_utc": datetime.now(timezone.utc).isoformat(),
-        "monitoring_ref": monitoring_ref,
-        "stop_label": stop_label,
         "line_ref": line_ref,
-        "payload": payload
+        "line_label": line_label,
+        "target_stop_refs": target_stop_refs,
+        "filtered_journey_count": len(filtered_journeys),
+        "filtered_journeys": filtered_journeys,
+        "payload": raw_payload
     }
 
 
 def main() -> None:
     app_config = load_app_config()
     idfm_credentials = load_idfm_credentials()
-    stops_config = load_yaml("config/api/idfm_stops.yaml")
+    lines_config = load_yaml("config/api/idfm_lines.yaml")
 
     bootstrap_servers = app_config["kafka"]["bootstrap_servers"]
     topic_name = app_config["kafka"]["topic_idfm_raw"]
@@ -110,20 +107,22 @@ def main() -> None:
     producer = build_kafka_producer(bootstrap_servers)
 
     api_key = idfm_credentials["idfm"]["api_key"]
-    base_url = idfm_credentials["idfm"]["base_url"]
     timeout_seconds = idfm_credentials["idfm"]["timeout_seconds"]
     poll_interval_seconds = idfm_credentials["idfm"]["poll_interval_seconds"]
-    maximum_stop_visits = idfm_credentials["idfm"]["maximum_stop_visits"]
 
-    enabled_stops = [stop for stop in stops_config["stops"] if stop.get("enabled", False)]
+    base_url = idfm_credentials["idfm"].get(
+        "line_request_base_url",
+        "https://prim.iledefrance-mobilites.fr/marketplace/requete-ligne"
+    )
 
-    if not enabled_stops:
-        raise ValueError("No enabled stops found in config/api/idfm_stops.yaml")
+    enabled_lines = [line for line in lines_config["lines"] if line.get("enabled", False)]
+    if not enabled_lines:
+        raise ValueError("No enabled lines found in config/api/idfm_lines.yaml")
 
-    print("=== IDFM PRODUCER TO KAFKA ===")
+    print("=== IDFM LINE PRODUCER TO KAFKA ===")
     print(f"Kafka bootstrap servers: {bootstrap_servers}")
     print(f"Kafka topic: {topic_name}")
-    print(f"Enabled stops: {len(enabled_stops)}")
+    print(f"Enabled lines: {len(enabled_lines)}")
     print("Press Ctrl+C to stop.")
 
     try:
@@ -132,44 +131,39 @@ def main() -> None:
             print("")
             print(f"Polling cycle started at: {cycle_start}")
 
-            for stop in enabled_stops:
-                monitoring_ref = stop["monitoring_ref"]
-                stop_label = stop["label"]
-                line_ref = stop.get("line_ref", "")
+            for line in enabled_lines:
+                line_ref = line["line_ref"]
+                line_label = line["line_label"]
+                target_stop_refs = line.get("target_stop_refs", [])
 
                 try:
-                    payload = fetch_stop_monitoring(
+                    payload = fetch_line_monitoring(
                         base_url=base_url,
                         api_key=api_key,
-                        monitoring_ref=monitoring_ref,
                         line_ref=line_ref,
-                        timeout_seconds=timeout_seconds,
-                        maximum_stop_visits=maximum_stop_visits
+                        timeout_seconds=timeout_seconds
                     )
 
+                    journeys = extract_estimated_journeys(payload)
+                    filtered_journeys = filter_journeys_by_stop_refs(journeys, target_stop_refs)
+
                     raw_message = build_raw_kafka_message(
-                        monitoring_ref=monitoring_ref,
-                        stop_label=stop_label,
                         line_ref=line_ref,
-                        payload=payload
+                        line_label=line_label,
+                        target_stop_refs=target_stop_refs,
+                        filtered_journeys=filtered_journeys,
+                        raw_payload=payload
                     )
                     producer.send(topic_name, raw_message)
 
-                    normalized_visits = normalize_stop_visits(
-                        raw_payload=payload,
-                        monitoring_ref=monitoring_ref,
-                        stop_label=stop_label
-                    )
-
                     print(
-                        f"[OK] stop={stop_label} monitoring_ref={monitoring_ref} "
-                        f"line_ref={line_ref} visits={len(normalized_visits)}"
+                        f"[OK] line={line_label} line_ref={line_ref} "
+                        f"all_journeys={len(journeys)} filtered_journeys={len(filtered_journeys)}"
                     )
 
                 except Exception as exc:
                     print(
-                        f"[ERROR] stop={stop_label} monitoring_ref={monitoring_ref} "
-                        f"line_ref={line_ref} error={exc}"
+                        f"[ERROR] line={line_label} line_ref={line_ref} error={exc}"
                     )
 
             producer.flush()

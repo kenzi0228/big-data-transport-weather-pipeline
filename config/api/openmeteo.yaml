@@ -1,0 +1,7 @@
+openmeteo:
+  base_url: "https://api.open-meteo.com/v1/forecast"
+  latitude: 48.8566
+  longitude: 2.3522
+  hourly: "temperature_2m,precipitation,wind_speed_10m"
+  forecast_days: 1
+  timezone: "Europe/Paris"
