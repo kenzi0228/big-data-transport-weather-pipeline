@@ -1,139 +1,113 @@
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def find_latest_json_file(base_dir: str, prefix: str) -> Path | None:
-    files = sorted((PROJECT_ROOT / base_dir).rglob(f"{prefix}_*.json"))
-    return files[-1] if files else None
+# --------------------------------------------------
+# Rafraichissement automatique toutes les 60 secondes
+# --------------------------------------------------
+components.html(
+    """
+    <script>
+        setTimeout(function() {
+            window.parent.location.reload();
+        }, 60000);
+    </script>
+    """,
+    height=0,
+)
+
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
+def find_latest_files(base_dir: str, pattern: str, limit: int = 30) -> list[Path]:
+    files = sorted((PROJECT_ROOT / base_dir).rglob(pattern))
+    return files[-limit:]
+
+
+@st.cache_data(ttl=30)
+def load_json_file(path_str: str) -> dict[str, Any] | None:
+    path = Path(path_str)
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+@st.cache_data(ttl=30)
+def load_many_json(paths: list[str]) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for path_str in paths:
+        payload = load_json_file(path_str)
+        if payload is not None:
+            payloads.append(payload)
+    return payloads
+
+
+@st.cache_data(ttl=300)
+def load_stop_name_mapping() -> dict[str, str]:
+    path = PROJECT_ROOT / "data" / "reference" / "processed" / "stop_ref_to_station_name.json"
+    if not path.exists():
+        return {}
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def resolve_stop_name(stop_ref: str | None, mapping: dict[str, str]) -> str:
+    if not stop_ref:
+        return "Station inconnue"
+    return mapping.get(stop_ref, stop_ref)
+
+
+def parse_dt(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def format_status(status: str | None) -> str:
+    mapping = {
+        "ON_TIME": "A l'heure",
+        "DELAYED": "Retarde",
+        "EARLY": "En avance",
+        "UNKNOWN": "Inconnu",
+        None: "Inconnu",
+    }
+    return mapping.get(status, str(status))
+
+
+def normalize_line(line_label: str) -> str:
+    return line_label.replace("metro_", "")
 
 
 def count_raw_files(base_dir: str, prefix: str) -> int:
     return len(list((PROJECT_ROOT / base_dir).rglob(f"{prefix}_*.json")))
 
 
-def load_json(path: Path | None) -> dict[str, Any] | None:
-    if path is None or not path.exists():
-        return None
-    with open(path, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-
-def load_batch_summary() -> dict[str, Any] | None:
-    return load_json(PROJECT_ROOT / "data" / "analytics" / "daily_kpis" / "transport_weather_summary.json")
-
-
-def load_mapreduce_output() -> list[dict[str, Any]]:
-    path = PROJECT_ROOT / "data" / "analytics" / "daily_kpis" / "mapreduce_line_destination_counts.txt"
-    if not path.exists():
-        return []
-
-    rows: list[dict[str, Any]] = []
-    with open(path, "r", encoding="utf-8") as file:
-        for line in file:
-            line = line.strip()
-            if not line or "\t" not in line:
-                continue
-
-            key, count = line.split("\t", 1)
-            if "|" not in key:
-                continue
-
-            line_label, destination = key.split("|", 1)
-            rows.append(
-                {
-                    "Ligne": line_label.replace("metro_", ""),
-                    "Destination": destination,
-                    "Occurrences": int(count),
-                }
-            )
-    return rows
-
-
-def run_python_script(relative_path: str) -> tuple[bool, str]:
-    script_path = PROJECT_ROOT / relative_path
-    try:
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return True, (result.stdout or "").strip()
-    except subprocess.CalledProcessError as exc:
-        output = (exc.stdout or "") + "\n" + (exc.stderr or "")
-        return False, output.strip()
-
-
-def kafka_running() -> bool:
-    try:
-        result = subprocess.run(
-            ["docker", "ps", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return "kafka-local" in result.stdout.splitlines()
-    except Exception:
-        return False
-
-
-def extract_latest_transport_events(limit: int = 12) -> list[dict[str, Any]]:
-    latest_transport = find_latest_json_file("data/raw/idfm_stop_monitoring", "idfm_raw")
-    payload = load_json(latest_transport)
-    if not payload:
-        return []
-
-    line_label = payload.get("line_label", "unknown")
-    filtered_journeys = payload.get("filtered_journeys", [])
-
-    rows: list[dict[str, Any]] = []
-
-    for item in filtered_journeys:
-        matched_calls = item.get("matched_calls", [])
-        for call in matched_calls:
-            stop_ref_raw = call.get("StopPointRef", {})
-            stop_ref = stop_ref_raw.get("value") if isinstance(stop_ref_raw, dict) else stop_ref_raw
-
-            destination_display = call.get("DestinationDisplay", [])
-            destination = "Inconnue"
-            if isinstance(destination_display, list) and destination_display:
-                first = destination_display[0]
-                if isinstance(first, dict):
-                    destination = str(first.get("value", "Inconnue"))
-                elif isinstance(first, str):
-                    destination = first
-
-            expected_time = call.get("ExpectedArrivalTime") or call.get("ExpectedDepartureTime")
-            status = call.get("DepartureStatus", "UNKNOWN")
-
-            rows.append(
-                {
-                    "LigneLabel": line_label,
-                    "Ligne": line_label.replace("metro_", ""),
-                    "Destination": destination,
-                    "Heure prévue": expected_time,
-                    "Statut": status,
-                    "StopPointRef": stop_ref,
-                }
-            )
-
-    return rows[:limit]
+def latest_weather_file() -> Path | None:
+    files = sorted((PROJECT_ROOT / "data" / "raw" / "openmeteo").rglob("openmeteo_raw_*.json"))
+    return files[-1] if files else None
 
 
 def extract_weather_metrics() -> dict[str, Any] | None:
-    latest_weather = find_latest_json_file("data/raw/openmeteo", "openmeteo_raw")
-    payload = load_json(latest_weather)
+    latest_file = latest_weather_file()
+    if latest_file is None:
+        return None
+
+    payload = load_json_file(str(latest_file))
     if not payload:
         return None
 
@@ -149,136 +123,247 @@ def extract_weather_metrics() -> dict[str, Any] | None:
         return round(sum(values) / len(values), 2) if values else None
 
     return {
-        "Dernier fichier": latest_weather.name,
-        "Points horaires": len(times),
-        "Température moyenne": avg(temperatures),
-        "Précipitations totales": round(sum(precipitations), 2) if precipitations else None,
-        "Vent moyen": avg(wind_speeds),
+        "fichier": latest_file.name,
+        "points_horaires": len(times),
+        "temperature_moyenne": avg(temperatures),
+        "precipitations_totales": round(sum(precipitations), 2) if precipitations else None,
+        "vent_moyen": avg(wind_speeds),
     }
 
 
-def format_status(status: str) -> str:
-    mapping = {
-        "ON_TIME": "À l'heure",
-        "DELAYED": "Retardé",
-        "EARLY": "En avance",
-        "UNKNOWN": "Inconnu",
-    }
-    return mapping.get(status, status)
+def extract_live_trains(limit_files: int = 30) -> list[dict[str, Any]]:
+    files = find_latest_files("data/raw/idfm_stop_monitoring", "idfm_raw_*.json", limit=limit_files)
+    payloads = load_many_json([str(p) for p in files])
+
+    now = datetime.now(timezone.utc)
+    trains: dict[str, dict[str, Any]] = {}
+
+    for payload in payloads:
+        line_label = payload.get("line_label", "unknown")
+        line_ref = payload.get("line_ref", "unknown")
+        filtered_journeys = payload.get("filtered_journeys", [])
+
+        if not isinstance(filtered_journeys, list):
+            continue
+
+        for item in filtered_journeys:
+            journey = item.get("journey", {})
+            if not isinstance(journey, dict):
+                continue
+
+            dated_ref_obj = journey.get("DatedVehicleJourneyRef", {})
+            if isinstance(dated_ref_obj, dict):
+                train_id = dated_ref_obj.get("value", "")
+            else:
+                train_id = str(dated_ref_obj)
+
+            if not train_id:
+                continue
+
+            destination = "Destination inconnue"
+            destination_name = journey.get("DestinationName", [])
+            if isinstance(destination_name, list) and destination_name:
+                first = destination_name[0]
+                if isinstance(first, dict):
+                    destination = str(first.get("value", destination))
+                elif isinstance(first, str):
+                    destination = first
+
+            estimated_calls_container = journey.get("EstimatedCalls", {})
+            estimated_calls = estimated_calls_container.get("EstimatedCall", [])
+            if not isinstance(estimated_calls, list):
+                estimated_calls = []
+
+            future_calls = []
+            for call in estimated_calls:
+                arrival = call.get("ExpectedArrivalTime")
+                departure = call.get("ExpectedDepartureTime")
+                best_time = arrival or departure
+                best_dt = parse_dt(best_time)
+
+                if best_dt is None:
+                    continue
+
+                if best_dt >= now:
+                    stop_ref_raw = call.get("StopPointRef", {})
+                    if isinstance(stop_ref_raw, dict):
+                        stop_ref = stop_ref_raw.get("value")
+                    else:
+                        stop_ref = stop_ref_raw
+
+                    status = call.get("DepartureStatus", "UNKNOWN")
+                    approach = call.get("ArrivalProximityText", {})
+                    if isinstance(approach, dict):
+                        approach_text = approach.get("value")
+                    else:
+                        approach_text = None
+
+                    future_calls.append(
+                        {
+                            "stop_ref": stop_ref,
+                            "expected_time": best_time,
+                            "expected_dt": best_dt,
+                            "status": status,
+                            "approach": approach_text,
+                        }
+                    )
+
+            if not future_calls:
+                continue
+
+            future_calls.sort(key=lambda x: x["expected_dt"])
+            next_call = future_calls[0]
+
+            existing = trains.get(train_id)
+            existing_dt = parse_dt(existing["heure_prevue"]) if existing else None
+
+            if existing is None or existing_dt is None or next_call["expected_dt"] < existing_dt:
+                trains[train_id] = {
+                    "train_id": train_id,
+                    "line_label": line_label,
+                    "ligne": normalize_line(line_label),
+                    "line_ref": line_ref,
+                    "destination": destination,
+                    "prochain_arret_ref": next_call["stop_ref"],
+                    "heure_prevue": next_call["expected_time"],
+                    "statut_brut": next_call["status"],
+                    "statut": format_status(next_call["status"]),
+                    "approche": next_call["approach"],
+                    "arrets_a_venir": future_calls[:5],
+                }
+
+    result = list(trains.values())
+    result.sort(key=lambda x: (x["ligne"], x["destination"], x["heure_prevue"]))
+    return result
 
 
-st.set_page_config(page_title="Pipeline Big Data Transport & Météo", layout="wide")
+# --------------------------------------------------
+# Page
+# --------------------------------------------------
+st.set_page_config(page_title="Suivi temps reel des metros", layout="wide")
 
-st.title("Pipeline Big Data Transport & Météo")
-st.caption("Interface de démonstration : IDFM réel, Open-Meteo, Kafka, batch analytics, MapReduce")
-
-summary = load_batch_summary()
+mapping_stations = load_stop_name_mapping()
+trains = extract_live_trains()
 weather = extract_weather_metrics()
-events = extract_latest_transport_events()
-mapreduce_rows = load_mapreduce_output()
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Kafka", "Actif" if kafka_running() else "Inactif")
-c2.metric("Fichiers transport", count_raw_files("data/raw/idfm_stop_monitoring", "idfm_raw"))
-c3.metric("Fichiers météo", count_raw_files("data/raw/openmeteo", "openmeteo_raw"))
-c4.metric(
-    "Journeys filtrés",
-    summary["transport"]["total_filtered_journeys"] if summary else "N/A"
-)
+st.title("Suivi temps reel des metros")
+st.caption("Mise a jour automatique toutes les 60 secondes")
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Kafka", "Actif")
+m2.metric("Fichiers transport", count_raw_files("data/raw/idfm_stop_monitoring", "idfm_raw"))
+m3.metric("Metros affiches", len(trains))
+m4.metric("Rafraichissement", "60 s")
 
 st.divider()
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Vue d'ensemble", "Transport temps réel", "Météo Paris", "Analytics", "Actions"]
+c1, c2 = st.columns(2)
+
+all_lines = sorted({train["ligne"] for train in trains})
+selected_lines = c1.multiselect(
+    "Filtre ligne",
+    options=all_lines,
+    default=all_lines,
 )
 
+all_statuses = sorted({train["statut"] for train in trains})
+selected_statuses = c2.multiselect(
+    "Filtre statut",
+    options=all_statuses,
+    default=all_statuses,
+)
+
+filtered_trains = [
+    train for train in trains
+    if (train["ligne"] in selected_lines if selected_lines else True)
+    and (train["statut"] in selected_statuses if selected_statuses else True)
+]
+
+tab1, tab2, tab3 = st.tabs(["Transport temps reel", "Meteo Paris", "Vue tableau"])
+
 with tab1:
-    st.subheader("État global")
+    st.subheader("Liste des metros en circulation")
 
-    if summary:
-        observed_lines = summary["transport"].get("observed_lines", [])
-        st.write(f"**Lignes observées :** {', '.join(observed_lines) if observed_lines else 'Aucune'}")
-        st.write(f"**Total des journeys filtrés :** {summary['transport'].get('total_filtered_journeys', 0)}")
+    if not filtered_trains:
+        st.warning("Aucun metro ne correspond aux filtres actuels.")
     else:
-        st.info("Le résumé batch n'est pas encore disponible.")
+        summary_rows = []
+        for train in filtered_trains:
+            summary_rows.append(
+                {
+                    "Ligne": train["ligne"],
+                    "Destination": train["destination"],
+                    "Prochain arret": resolve_stop_name(train["prochain_arret_ref"], mapping_stations),
+                    "Heure prevue": train["heure_prevue"],
+                    "Statut": train["statut"],
+                }
+            )
 
-    latest_transport = find_latest_json_file("data/raw/idfm_stop_monitoring", "idfm_raw")
-    latest_weather = find_latest_json_file("data/raw/openmeteo", "openmeteo_raw")
+        st.markdown("### Vue synthetique")
+        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**Dernier fichier transport**")
-        st.code(str(latest_transport) if latest_transport else "Aucun fichier")
-    with right:
-        st.markdown("**Dernier fichier météo**")
-        st.code(str(latest_weather) if latest_weather else "Aucun fichier")
-
-with tab2:
-    st.subheader("Transport temps réel")
-
-    if not events:
-        st.warning("Aucun événement transport trouvé.")
-    else:
-        for row in events:
+        st.markdown("### Detail par metro")
+        for train in filtered_trains:
             with st.container(border=True):
                 left, right = st.columns([1, 4])
 
                 with left:
-                    st.markdown(f"## 🚇 {row['Ligne']}")
+                    st.markdown(f"## Ligne {train['ligne']}")
 
                 with right:
-                    st.markdown(f"**Destination :** {row['Destination']}")
-                    st.markdown(f"**Heure prévue :** {row['Heure prévue']}")
-                    st.markdown(f"**Statut :** {format_status(row['Statut'])}")
-                    st.markdown(f"**StopPointRef :** `{row['StopPointRef']}`")
+                    st.markdown(f"**Destination :** {train['destination']}")
+                    st.markdown(f"**Prochain arret surveille :** {resolve_stop_name(train['prochain_arret_ref'], mapping_stations)}")
+                    st.markdown(f"**Heure prevue :** {train['heure_prevue']}")
+                    st.markdown(f"**Statut :** {train['statut']}")
+                    if train["approche"]:
+                        st.markdown(f"**Information d'approche :** {train['approche']}")
 
-with tab3:
-    st.subheader("Météo Paris")
+                    detail_rows = []
+                    for call in train["arrets_a_venir"]:
+                        detail_rows.append(
+                            {
+                                "Station": resolve_stop_name(call["stop_ref"], mapping_stations),
+                                "Heure prevue": call["expected_time"],
+                                "Statut": format_status(call["status"]),
+                            }
+                        )
 
-    if not weather:
-        st.warning("Aucune donnée météo trouvée.")
+                    st.markdown("**Arrets estimes a venir**")
+                    st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+
+        st.info("Les donnees affichent des passages estimes sur les arrets surveilles, et non une geolocalisation GPS continue des rames.")
+
+with tab2:
+    st.subheader("Meteo Paris")
+
+    if weather is None:
+        st.warning("Aucune donnee meteo trouvee.")
     else:
         w1, w2, w3, w4 = st.columns(4)
-        w1.metric("🌡️ Température moyenne", weather["Température moyenne"])
-        w2.metric("🌧️ Précipitations totales", weather["Précipitations totales"])
-        w3.metric("💨 Vent moyen", weather["Vent moyen"])
-        w4.metric("🕒 Points horaires", weather["Points horaires"])
+        w1.metric("Temperature moyenne", weather["temperature_moyenne"])
+        w2.metric("Precipitations totales", weather["precipitations_totales"])
+        w3.metric("Vent moyen", weather["vent_moyen"])
+        w4.metric("Points horaires", weather["points_horaires"])
 
-        st.write(f"**Dernier fichier météo :** {weather['Dernier fichier']}")
+        st.write(f"**Dernier fichier meteo :** {weather['fichier']}")
 
-with tab4:
-    st.subheader("Analytics")
+with tab3:
+    st.subheader("Vue tableau")
 
-    if summary:
-        lines = summary["transport"].get("lines", [])
-        if lines:
-            df_lines = pd.DataFrame(lines)
-            st.markdown("### Résumé batch par ligne")
-            st.dataframe(df_lines, use_container_width=True)
-
-    if mapreduce_rows:
-        st.markdown("### Résultat MapReduce")
-        df_map = pd.DataFrame(mapreduce_rows)
-        st.dataframe(df_map, use_container_width=True)
+    if not filtered_trains:
+        st.info("Aucune ligne a afficher.")
     else:
-        st.info("Aucune sortie MapReduce trouvée.")
+        rows = []
+        for train in filtered_trains:
+            rows.append(
+                {
+                    "Ligne": train["ligne"],
+                    "Destination": train["destination"],
+                    "Prochain arret": resolve_stop_name(train["prochain_arret_ref"], mapping_stations),
+                    "Heure prevue": train["heure_prevue"],
+                    "Statut": train["statut"],
+                    "Identifiant train": train["train_id"],
+                }
+            )
 
-with tab5:
-    st.subheader("Actions")
-
-    if st.button("Relancer ingestion météo"):
-        ok, output = run_python_script("scripts/ingestion/ingest_openmeteo_to_hdfs.py")
-        st.success("Ingestion météo exécutée avec succès.") if ok else st.error("Échec de l'ingestion météo.")
-        st.code(output or "Aucune sortie")
-
-    if st.button("Relancer batch summary"):
-        ok, output = run_python_script("scripts/batch/build_transport_weather_summary.py")
-        st.success("Batch summary exécuté avec succès.") if ok else st.error("Échec du batch summary.")
-        st.code(output or "Aucune sortie")
-
-    if st.button("Relancer MapReduce local"):
-        ok, output = run_python_script("scripts/mapreduce/run_mapreduce_local.py")
-        st.success("MapReduce local exécuté avec succès.") if ok else st.error("Échec du MapReduce local.")
-        st.code(output or "Aucune sortie")
-
-    st.info("Le producer Kafka temps réel reste à lancer séparément si tu veux alimenter la pipeline en continu.")
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
