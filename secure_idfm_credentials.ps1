@@ -1,3 +1,68 @@
+$ErrorActionPreference = "Stop"
+
+function Write-Utf8NoBom {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+
+    [System.IO.File]::WriteAllText(
+        $Path,
+        $Content,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+# 1. Create secrets folder and placeholder file if missing
+if (-not (Test-Path "secrets")) {
+    New-Item -ItemType Directory -Path "secrets" | Out-Null
+}
+
+if (-not (Test-Path "secrets/idfm_api_key.txt")) {
+    Write-Utf8NoBom -Path "secrets/idfm_api_key.txt" -Content "REPLACE_WITH_YOUR_REAL_IDFM_API_KEY"
+}
+
+# 2. Public template
+$template = @'
+idfm:
+  api_key_file: "secrets/idfm_api_key.txt"
+  base_url: "https://prim.iledefrance-mobilites.fr/marketplace/stop-monitoring"
+  line_request_base_url: "https://prim.iledefrance-mobilites.fr/marketplace/requete-ligne"
+  timeout_seconds: 20
+  poll_interval_seconds: 60
+'@
+Write-Utf8NoBom -Path "config/api/idfm_credentials.template.yaml" -Content $template
+
+# 3. Local credentials file
+Write-Utf8NoBom -Path "config/api/idfm_credentials.yaml" -Content $template
+
+# 4. Update .gitignore
+$gitignorePath = ".gitignore"
+$gitignore = ""
+if (Test-Path $gitignorePath) {
+    $gitignore = Get-Content -Raw $gitignorePath
+}
+
+$entries = @(
+    "secrets/",
+    "config/api/idfm_credentials.yaml"
+)
+
+foreach ($entry in $entries) {
+    if ($gitignore -notmatch [regex]::Escape($entry)) {
+        $gitignore += "`r`n$entry"
+    }
+}
+
+Write-Utf8NoBom -Path $gitignorePath -Content $gitignore.Trim()
+
+# 5. Update producer_idfm_line_to_kafka.py
+$producer = @'
 from __future__ import annotations
 
 import json
@@ -197,3 +262,12 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+'@
+Write-Utf8NoBom -Path "scripts/ingestion/producer_idfm_line_to_kafka.py" -Content $producer
+
+Write-Host ""
+Write-Host "IDFM credentials secured successfully." -ForegroundColor Green
+Write-Host ""
+Write-Host "Next:" -ForegroundColor Cyan
+Write-Host "1. Open secrets\idfm_api_key.txt and put your real key"
+Write-Host "2. Run git status to verify secrets are ignored"
