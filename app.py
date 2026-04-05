@@ -4,12 +4,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
 components.html(
@@ -70,6 +72,13 @@ def parse_dt(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def format_paris_time(value: str | None) -> str:
+    dt = parse_dt(value)
+    if dt is None:
+        return "Heure inconnue"
+    return dt.astimezone(PARIS_TZ).strftime("%d/%m/%Y %H:%M:%S")
 
 
 def format_status(status: str | None) -> str:
@@ -244,7 +253,7 @@ def extract_live_trains(limit_files: int = 30) -> list[dict[str, Any]]:
             next_call = future_calls[0]
 
             existing = trains.get(train_id)
-            existing_dt = parse_dt(existing["heure_prevue"]) if existing else None
+            existing_dt = parse_dt(existing["heure_prevue_raw"]) if existing else None
 
             if existing is None or existing_dt is None or next_call["expected_dt"] < existing_dt:
                 trains[train_id] = {
@@ -254,7 +263,8 @@ def extract_live_trains(limit_files: int = 30) -> list[dict[str, Any]]:
                     "line_ref": line_ref,
                     "destination": destination,
                     "prochain_arret_ref": next_call["stop_ref"],
-                    "heure_prevue": next_call["expected_time"],
+                    "heure_prevue_raw": next_call["expected_time"],
+                    "heure_prevue": format_paris_time(next_call["expected_time"]),
                     "statut_brut": next_call["status"],
                     "statut": format_status(next_call["status"]),
                     "approche": next_call["approach"],
@@ -262,7 +272,7 @@ def extract_live_trains(limit_files: int = 30) -> list[dict[str, Any]]:
                 }
 
     result = list(trains.values())
-    result.sort(key=lambda x: (x["ligne"], x["destination"], x["heure_prevue"]))
+    result.sort(key=lambda x: (x["ligne"], x["destination"], x["heure_prevue_raw"]))
     return result
 
 
@@ -299,9 +309,11 @@ st.set_page_config(page_title="Suivi temps reel des metros", layout="wide")
 mapping_stations = load_stop_name_mapping()
 trains = extract_live_trains()
 weather = extract_weather_metrics()
+now_paris = datetime.now(PARIS_TZ).strftime("%d/%m/%Y %H:%M:%S")
 
 st.title("Suivi temps reel des metros")
 st.caption("Mise a jour automatique toutes les 60 secondes")
+st.write(f"**Heure locale Paris :** {now_paris}")
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Kafka", "Actif")
@@ -370,7 +382,7 @@ with tab1:
                         detail_rows.append(
                             {
                                 "Station": resolve_stop_name(call["stop_ref"], mapping_stations),
-                                "Heure prevue": call["expected_time"],
+                                "Heure prevue": format_paris_time(call["expected_time"]),
                                 "Statut": format_status(call["status"]),
                             }
                         )
