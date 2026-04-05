@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import sys
 
-def main():
+
+def main() -> None:
     current_key = None
     current_count = 0
 
@@ -10,8 +13,11 @@ def main():
         if not line:
             continue
 
-        key, value = line.split("\t")
-        value = int(value)
+        try:
+            key, value = line.split("\t", 1)
+            value = int(value)
+        except ValueError:
+            continue
 
         if current_key == key:
             current_count += value
@@ -23,6 +29,7 @@ def main():
 
     if current_key is not None:
         print(f"{current_key}\t{current_count}")
+
 
 if __name__ == "__main__":
     main()

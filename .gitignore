@@ -45,7 +45,6 @@ runtime/pids/*
 # =========================
 # Credentials / secrets
 # =========================
-config/api/idfm_credentials.yaml
 config/api/*.secret.yaml
 *.pem
 *.key
@@ -101,3 +100,4 @@ archive/
 *.csv
 *.parquet
 *.jsonl
+*.ps1
