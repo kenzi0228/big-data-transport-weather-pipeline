@@ -6,8 +6,10 @@
         <shell xmlns="uri:oozie:shell-action:0.3">
             <job-tracker>${jobTracker}</job-tracker>
             <name-node>${nameNode}</name-node>
-            <exec>scripts/ingestion/ingest_openmeteo_to_hdfs.py</exec>
-            <file>scripts/ingestion/ingest_openmeteo_to_hdfs.py#scripts/ingestion/ingest_openmeteo_to_hdfs.py</file>
+            <exec>ingest_openmeteo_to_hdfs.py</exec>
+            <file>scripts/ingestion/ingest_openmeteo_to_hdfs.py#ingest_openmeteo_to_hdfs.py</file>
+            <file>config/api/openmeteo.yaml#openmeteo.yaml</file>
+            <file>config/app_config.yaml#app_config.yaml</file>
         </shell>
         <ok to="create-hive-tables"/>
         <error to="fail"/>
@@ -17,8 +19,8 @@
         <hive xmlns="uri:oozie:hive-action:0.5">
             <job-tracker>${jobTracker}</job-tracker>
             <name-node>${nameNode}</name-node>
-            <script>scripts/hive/create_external_tables.hql</script>
-            <file>scripts/hive/create_external_tables.hql#scripts/hive/create_external_tables.hql</file>
+            <script>create_external_tables.hql</script>
+            <file>scripts/hive/create_external_tables.hql#create_external_tables.hql</file>
         </hive>
         <ok to="create-enriched-view"/>
         <error to="fail"/>
@@ -28,8 +30,8 @@
         <hive xmlns="uri:oozie:hive-action:0.5">
             <job-tracker>${jobTracker}</job-tracker>
             <name-node>${nameNode}</name-node>
-            <script>scripts/hive/create_enriched_view.hql</script>
-            <file>scripts/hive/create_enriched_view.hql#scripts/hive/create_enriched_view.hql</file>
+            <script>create_enriched_view.hql</script>
+            <file>scripts/hive/create_enriched_view.hql#create_enriched_view.hql</file>
         </hive>
         <ok to="run-mapreduce"/>
         <error to="fail"/>
@@ -39,10 +41,10 @@
         <shell xmlns="uri:oozie:shell-action:0.3">
             <job-tracker>${jobTracker}</job-tracker>
             <name-node>${nameNode}</name-node>
-            <exec>scripts/mapreduce/run_mapreduce_hadoop.sh</exec>
-            <file>scripts/mapreduce/run_mapreduce_hadoop.sh#scripts/mapreduce/run_mapreduce_hadoop.sh</file>
-            <file>scripts/mapreduce/mapper.py#scripts/mapreduce/mapper.py</file>
-            <file>scripts/mapreduce/reducer.py#scripts/mapreduce/reducer.py</file>
+            <exec>run_mapreduce_hadoop.sh</exec>
+            <file>scripts/mapreduce/run_mapreduce_hadoop.sh#run_mapreduce_hadoop.sh</file>
+            <file>scripts/mapreduce/mapper.py#mapper.py</file>
+            <file>scripts/mapreduce/reducer.py#reducer.py</file>
         </shell>
         <ok to="end"/>
         <error to="fail"/>

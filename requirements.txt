@@ -4,3 +4,4 @@ pandas
 pyyaml
 happybase
 lxml
+streamlit

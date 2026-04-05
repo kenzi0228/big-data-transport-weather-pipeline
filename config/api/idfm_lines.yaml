@@ -6,9 +6,10 @@ lines:
       - "STIF:StopPoint:Q:463128:"
     enabled: true
 
-  - line_ref: "STIF:Line::C01379:"
-    line_label: "metro_9"
+  - line_ref: "STIF:Line::C01377:"
+    line_label: "metro_7"
     target_stop_refs:
-      - "STIF:StopPoint:Q:21941:"
-      - "STIF:StopPoint:Q:463233:"
+      - "STIF:StopPoint:Q:22381:"
+      - "STIF:StopPoint:Q:463026:"
+      - "STIF:StopPoint:Q:463155:"
     enabled: true

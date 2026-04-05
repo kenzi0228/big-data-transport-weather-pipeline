@@ -13,6 +13,21 @@ def load_yaml(path: str) -> dict[str, Any]:
         return yaml.safe_load(file)
 
 
+def load_api_key_from_file(path: str) -> str:
+    key_path = Path(path)
+    if not key_path.exists():
+        raise FileNotFoundError(f"Missing API key file: {path}")
+
+    api_key = key_path.read_text(encoding="utf-8").strip()
+    if not api_key:
+        raise ValueError(f"API key file is empty: {path}")
+
+    if api_key == "REPLACE_WITH_YOUR_REAL_IDFM_API_KEY":
+        raise ValueError("Please replace the placeholder value in secrets/idfm_api_key.txt")
+
+    return api_key
+
+
 def main() -> None:
     credentials_path = Path("config/api/idfm_credentials.yaml")
     lines_path = Path("config/api/idfm_lines.yaml")
@@ -23,7 +38,8 @@ def main() -> None:
     credentials = load_yaml(str(credentials_path))
     lines_config = load_yaml(str(lines_path))
 
-    api_key = credentials["idfm"]["api_key"]
+    api_key_file = credentials["idfm"]["api_key_file"]
+    api_key = load_api_key_from_file(api_key_file)
     timeout_seconds = credentials["idfm"]["timeout_seconds"]
 
     base_url = credentials["idfm"].get(
