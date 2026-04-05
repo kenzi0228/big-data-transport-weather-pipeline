@@ -12,9 +12,6 @@ import streamlit.components.v1 as components
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-# --------------------------------------------------
-# Rafraichissement automatique toutes les 60 secondes
-# --------------------------------------------------
 components.html(
     """
     <script>
@@ -27,9 +24,6 @@ components.html(
 )
 
 
-# --------------------------------------------------
-# Helpers
-# --------------------------------------------------
 def find_latest_files(base_dir: str, pattern: str, limit: int = 30) -> list[Path]:
     files = sorted((PROJECT_ROOT / base_dir).rglob(pattern))
     return files[-limit:]
@@ -102,6 +96,36 @@ def latest_weather_file() -> Path | None:
     return files[-1] if files else None
 
 
+def describe_weather(temp: float | None, rain: float | None, wind: float | None) -> str:
+    if temp is None or rain is None or wind is None:
+        return "Meteo actuelle a Paris : information indisponible."
+
+    if temp < 5:
+        temp_label = "tres froid"
+    elif temp < 12:
+        temp_label = "frais"
+    elif temp < 20:
+        temp_label = "doux"
+    else:
+        temp_label = "chaud"
+
+    if rain == 0:
+        rain_label = "sec"
+    elif rain <= 2:
+        rain_label = "legerement pluvieux"
+    else:
+        rain_label = "pluvieux"
+
+    if wind < 15:
+        wind_label = "peu venteux"
+    elif wind < 30:
+        wind_label = "venteux"
+    else:
+        wind_label = "tres venteux"
+
+    return f"Meteo actuelle a Paris : {temp_label}, {rain_label}, {wind_label}."
+
+
 def extract_weather_metrics() -> dict[str, Any] | None:
     latest_file = latest_weather_file()
     if latest_file is None:
@@ -122,12 +146,17 @@ def extract_weather_metrics() -> dict[str, Any] | None:
     def avg(values: list[float]) -> float | None:
         return round(sum(values) / len(values), 2) if values else None
 
+    temp_avg = avg(temperatures)
+    rain_total = round(sum(precipitations), 2) if precipitations else None
+    wind_avg = avg(wind_speeds)
+
     return {
         "fichier": latest_file.name,
         "points_horaires": len(times),
-        "temperature_moyenne": avg(temperatures),
-        "precipitations_totales": round(sum(precipitations), 2) if precipitations else None,
-        "vent_moyen": avg(wind_speeds),
+        "temperature_moyenne": temp_avg,
+        "precipitations_totales": rain_total,
+        "vent_moyen": wind_avg,
+        "description": describe_weather(temp_avg, rain_total, wind_avg),
     }
 
 
@@ -237,9 +266,34 @@ def extract_live_trains(limit_files: int = 30) -> list[dict[str, Any]]:
     return result
 
 
-# --------------------------------------------------
-# Page
-# --------------------------------------------------
+def build_aggregated_view(trains: list[dict[str, Any]], mapping_stations: dict[str, str]) -> pd.DataFrame:
+    rows = []
+    for train in trains:
+        rows.append(
+            {
+                "Ligne": train["ligne"],
+                "Destination": train["destination"],
+                "Prochain arret": resolve_stop_name(train["prochain_arret_ref"], mapping_stations),
+                "Heure prevue": train["heure_prevue"],
+                "Statut": train["statut"],
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    aggregated = (
+        df.groupby(["Ligne", "Destination", "Prochain arret", "Statut"], as_index=False)
+          .agg(
+              Nombre_metros=("Ligne", "count"),
+              Premiere_heure_prevue=("Heure prevue", "min"),
+          )
+          .sort_values(by=["Ligne", "Destination", "Premiere_heure_prevue"])
+    )
+    return aggregated
+
+
 st.set_page_config(page_title="Suivi temps reel des metros", layout="wide")
 
 mapping_stations = load_stop_name_mapping()
@@ -254,6 +308,9 @@ m1.metric("Kafka", "Actif")
 m2.metric("Fichiers transport", count_raw_files("data/raw/idfm_stop_monitoring", "idfm_raw"))
 m3.metric("Metros affiches", len(trains))
 m4.metric("Rafraichissement", "60 s")
+
+if weather is not None:
+    st.info(weather["description"])
 
 st.divider()
 
@@ -287,20 +344,10 @@ with tab1:
     if not filtered_trains:
         st.warning("Aucun metro ne correspond aux filtres actuels.")
     else:
-        summary_rows = []
-        for train in filtered_trains:
-            summary_rows.append(
-                {
-                    "Ligne": train["ligne"],
-                    "Destination": train["destination"],
-                    "Prochain arret": resolve_stop_name(train["prochain_arret_ref"], mapping_stations),
-                    "Heure prevue": train["heure_prevue"],
-                    "Statut": train["statut"],
-                }
-            )
+        aggregated_df = build_aggregated_view(filtered_trains, mapping_stations)
 
-        st.markdown("### Vue synthetique")
-        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+        st.markdown("### Vue synthetique agregee")
+        st.dataframe(aggregated_df, use_container_width=True, hide_index=True)
 
         st.markdown("### Detail par metro")
         for train in filtered_trains:
@@ -346,6 +393,7 @@ with tab2:
         w4.metric("Points horaires", weather["points_horaires"])
 
         st.write(f"**Dernier fichier meteo :** {weather['fichier']}")
+        st.write(f"**Resume meteo :** {weather['description']}")
 
 with tab3:
     st.subheader("Vue tableau")
