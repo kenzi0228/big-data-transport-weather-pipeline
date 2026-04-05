@@ -1,4 +1,57 @@
 <workflow-app name="wf_idfm_weather_daily" xmlns="uri:oozie:workflow:0.5">
-    <start to="end"/>
+
+    <start to="ingest-weather"/>
+
+    <action name="ingest-weather">
+        <shell xmlns="uri:oozie:shell-action:0.3">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>scripts/ingestion/ingest_openmeteo_to_hdfs.py</exec>
+            <file>scripts/ingestion/ingest_openmeteo_to_hdfs.py#scripts/ingestion/ingest_openmeteo_to_hdfs.py</file>
+        </shell>
+        <ok to="create-hive-tables"/>
+        <error to="fail"/>
+    </action>
+
+    <action name="create-hive-tables">
+        <hive xmlns="uri:oozie:hive-action:0.5">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <script>scripts/hive/create_external_tables.hql</script>
+            <file>scripts/hive/create_external_tables.hql#scripts/hive/create_external_tables.hql</file>
+        </hive>
+        <ok to="create-enriched-view"/>
+        <error to="fail"/>
+    </action>
+
+    <action name="create-enriched-view">
+        <hive xmlns="uri:oozie:hive-action:0.5">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <script>scripts/hive/create_enriched_view.hql</script>
+            <file>scripts/hive/create_enriched_view.hql#scripts/hive/create_enriched_view.hql</file>
+        </hive>
+        <ok to="run-mapreduce"/>
+        <error to="fail"/>
+    </action>
+
+    <action name="run-mapreduce">
+        <shell xmlns="uri:oozie:shell-action:0.3">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>scripts/mapreduce/run_mapreduce_hadoop.sh</exec>
+            <file>scripts/mapreduce/run_mapreduce_hadoop.sh#scripts/mapreduce/run_mapreduce_hadoop.sh</file>
+            <file>scripts/mapreduce/mapper.py#scripts/mapreduce/mapper.py</file>
+            <file>scripts/mapreduce/reducer.py#scripts/mapreduce/reducer.py</file>
+        </shell>
+        <ok to="end"/>
+        <error to="fail"/>
+    </action>
+
+    <kill name="fail">
+        <message>Workflow failed at ${wf:lastErrorNode()}</message>
+    </kill>
+
     <end name="end"/>
+
 </workflow-app>
